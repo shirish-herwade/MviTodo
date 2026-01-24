@@ -105,7 +105,7 @@ class TodoViewModel @Inject constructor(
                         }
 
                         else -> {
-                            //TODO showSnackBar("No item selected")
+                            //TODO showSnackBar("No item selected!")
                         }
                     }
                 }
