@@ -41,6 +41,10 @@ class TodoViewModel @Inject constructor(
 
     fun onIntent(intent: TodoIntent) {
         when (intent) {
+            is TodoIntent.ChangeDraftTitle -> {
+                _state.update { it.copy(draftTitle = intent.title) }
+            }
+
             is TodoIntent.Delete ->
                 viewModelScope.launch(Dispatchers.IO) {
                     repository.delete(intent.todo)
@@ -56,10 +60,92 @@ class TodoViewModel @Inject constructor(
                     repository.update(intent.todo)
                 }
 
-            is TodoIntent.SaveTodo ->
-                viewModelScope.launch(Dispatchers.IO) {
-                    repository.insert(Todo(title = intent.title, id = 0, isDone = false))
+            is TodoIntent.SubmitTodo -> {
+                val title = state.value.draftTitle
+                if (title.isNotBlank()) {
+                    viewModelScope.launch(Dispatchers.IO) {
+                        repository.insert(Todo(title = title, id = 0, isSelected = false))
+                        _state.update { it.copy(draftTitle = "") }
+                    }
                 }
+            }
+
+            is TodoIntent.ConfirmDelete -> {
+                val selectionType = state.value.deleteSelection
+                val totoToDelete = state.value.selectedTodo
+
+                viewModelScope.launch(Dispatchers.IO) {
+                    when (selectionType) {
+                        TodoIntent.DeleteSelection.Single -> {
+                            totoToDelete?.let {
+                                repository.delete(todo = it)
+                            }
+                            _state.update {
+                                it.copy(
+                                    showDelete = false,
+                                    deleteSelection = null,
+                                    selectedTodo = null
+                                )
+                            }
+                        }
+
+                        TodoIntent.DeleteSelection.Selected -> {
+                            val selectedItems = state.value.items.filter {
+                                it.isSelected
+                            }
+                            if (selectedItems.isNotEmpty()) {
+                                repository.deleteTodos(selectedItems)
+                            }
+                            _state.update {
+                                it.copy(
+                                    showDelete = false,
+                                    deleteSelection = null
+                                )
+                            }
+                        }
+
+                        else -> {
+                            //TODO showSnackBar("No item selected")
+                        }
+                    }
+                }
+            }
+
+            TodoIntent.DismissDeleteDialog -> {
+                _state.update {
+                    it.copy(
+                        showDelete = false,
+                        selectedTodo = null
+                    )
+                }
+            }
+
+            is TodoIntent.ShowDeleteDialog -> {
+                _state.update {
+                    it.copy(
+                        showDelete = true,
+                        deleteSelection = intent.selection,
+                        selectedTodo = intent.todo
+                    )
+                }
+            }
+
+            is TodoIntent.DeleteSelected -> {
+                deleteSelected()
+            }
+        }
+    }
+
+    fun deleteSelected() {
+        val selectedItems = state.value.items.filter {
+            it.isSelected
+        }
+        if (selectedItems.isNotEmpty()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                repository.deleteTodos(selectedItems)
+            }
+        } else {
+            //TODO showSnackBar("No item selected")
         }
     }
 }

@@ -8,9 +8,9 @@ interface TodoRepository {
 
     suspend fun delete(todo: Todo)
 
+    suspend fun deleteTodos(todos: List<Todo>)
+
     suspend fun update(todo: Todo)
 
      fun getAllTodoListFlow(): Flow<List<Todo>>
-
-//     fun getAllTodo(): List<Todo>
 }

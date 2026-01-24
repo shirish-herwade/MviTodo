@@ -19,6 +19,9 @@ interface TodoDao {
     @Delete
     fun delete(toDo: Todo): Int
 
+    @Delete
+    fun deleteTodos(todos: List<Todo>)
+
     @Query("SELECT * FROM todo_table")
     fun getAlTodoList(): Flow<List<Todo>>
 

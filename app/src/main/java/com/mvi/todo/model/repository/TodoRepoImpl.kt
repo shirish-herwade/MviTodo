@@ -13,6 +13,10 @@ class TodoRepoImpl(private val todoDao: TodoDao) : TodoRepository {
         todoDao.delete(todo)
     }
 
+    override suspend fun deleteTodos(todos: List<Todo>) {
+        todoDao.deleteTodos(todos)
+    }
+
     override suspend fun update(todo: Todo) {
         todoDao.update(todo)
     }

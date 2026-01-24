@@ -8,6 +8,6 @@ data class Todo(
     val title: String,
     @PrimaryKey(autoGenerate = true)
     val id: Int,
-    val isDone: Boolean = false,
+    val isSelected: Boolean = false,
 ) {
 }

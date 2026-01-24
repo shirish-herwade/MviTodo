@@ -14,26 +14,33 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -69,10 +76,44 @@ fun MainScreen(
     onIntent: (TodoIntent) -> Unit
 ) {
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Todo Items") }) },
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text("Todo Items")
+                },
+                actions = {
+                    IconButton(
+                        onClick = {
+                            val hasSelection = state.items.any {
+                                it.isSelected
+                            }
+                            if (hasSelection) {
+                                onIntent(
+                                    TodoIntent.ShowDeleteDialog(
+                                        selection = TodoIntent.DeleteSelection.Selected
+                                    )
+                                )
+                            }
+                        }
+                    ) {
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = "Delete selected icons"
+                        )
+                    }
+                    IconButton(onClick = {}) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.maps_and_flags),
+                            contentDescription = "Go to Map",
+                            modifier = Modifier.size(24.dp),
+                        )
+                    }
+                }
+            )
+        },
         bottomBar = {
             Surface(tonalElevation = 3.dp) {
-                BottomInputArea(onIntent)
+                BottomInputArea(state, onIntent)
             }
         }
     ) { innerPadding ->
@@ -93,18 +134,50 @@ fun MainScreen(
                     modifier = Modifier.fillMaxSize()
                 ) {
                     items(state.items) { todo ->
-                        TodoRow(todo, onIntent)
+                        TodoRow(state, todo, onIntent)
                     }
                 }
             }
         }
     }
+    ShowDeleteDialog(state, onIntent)
 }
 
 @Composable
-fun BottomInputArea(onIntent: (TodoIntent) -> Unit) {
-    val title = remember { mutableStateOf("") }
+fun ShowDeleteDialog(state: TodoState, onIntent: (TodoIntent) -> Unit) {
+    var textToShow: String
+    if (state.deleteSelection == TodoIntent.DeleteSelection.Single) {
+        textToShow = "Do you want to delete this todo '${state.selectedTodo?.title}' ?"
+    } else {
+        textToShow = "Do you want to delete all selected todos ?"
+    }
 
+    if (state.showDelete) {
+        AlertDialog(
+            onDismissRequest = { onIntent(TodoIntent.DismissDeleteDialog) },
+            title = { Text(text = "Delete Todo ?") },
+            text = { Text(text = textToShow) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onIntent(TodoIntent.ConfirmDelete)
+                    })
+                { Text("Delete", color = Color.Red) }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    onIntent(TodoIntent.DismissDeleteDialog)
+                })
+                {
+                    Text("Cancel")
+                }
+            })
+    }
+}
+
+
+@Composable
+fun BottomInputArea(state: TodoState, onIntent: (TodoIntent) -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -113,8 +186,8 @@ fun BottomInputArea(onIntent: (TodoIntent) -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         TextField(
-            value = title.value,
-            onValueChange = { title.value = it },
+            value = state.draftTitle,
+            onValueChange = { onIntent(TodoIntent.ChangeDraftTitle(title = it)) },
             modifier = Modifier.fillMaxWidth(),
             placeholder = { Text("Enter todo title") }
         )
@@ -122,7 +195,7 @@ fun BottomInputArea(onIntent: (TodoIntent) -> Unit) {
         Button(
             modifier = Modifier.padding(top = 8.dp),
             onClick = {
-                handleSaveClick(title, onIntent)
+                onIntent(TodoIntent.SubmitTodo)
             }
         ) {
             Text(text = "Save todo")
@@ -133,19 +206,26 @@ fun BottomInputArea(onIntent: (TodoIntent) -> Unit) {
 fun handleSaveClick(titleState: MutableState<String>, onIntent: (TodoIntent) -> Unit) {
     val title = titleState.value.trim()
     if (title.isNotBlank()) {
-        onIntent(TodoIntent.SaveTodo(title))
+//        onIntent(TodoIntent.SaveTodo(title))
         titleState.value = ""
     }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun TodoRow(todo: Todo, onIntent: (TodoIntent) -> Unit) {
+fun TodoRow(state: TodoState, todo: Todo, onIntent: (TodoIntent) -> Unit) {
     Column(
         modifier = Modifier
             .combinedClickable(
                 onClick = { },
-                onLongClick = { onIntent(TodoIntent.Delete(todo)) }
+                onLongClick = {
+                    onIntent(
+                        TodoIntent.ShowDeleteDialog(
+                            todo = todo,
+                            selection = TodoIntent.DeleteSelection.Single
+                        )
+                    )
+                }
             )
             .fillMaxWidth()
     ) {
@@ -158,9 +238,9 @@ fun TodoRow(todo: Todo, onIntent: (TodoIntent) -> Unit) {
         ) {
             Text(text = todo.title)
             Checkbox(
-                checked = todo.isDone,
+                checked = todo.isSelected,
                 onCheckedChange = { isChecked ->
-                    onIntent(TodoIntent.Update(todo.copy(isDone = isChecked)))
+                    onIntent(TodoIntent.Update(todo.copy(isSelected = isChecked)))
                 }
             )
         }
@@ -173,10 +253,15 @@ fun TodoRow(todo: Todo, onIntent: (TodoIntent) -> Unit) {
 fun MainScreenPreview() {
     val mockState = TodoState(
         items = listOf(
-            Todo("Todo 1", isDone = false, id = 1),
-            Todo("Todo 2", isDone = true, id = 2),
-            Todo("Todo 3", isDone = false, id = 3)
-        )
+            Todo("Todo 1", isSelected = false, id = 1),
+            Todo("Todo 2", isSelected = true, id = 2),
+            Todo("Todo 3", isSelected = false, id = 3)
+        ),
+        isLoading = false,
+        error = null,
+        draftTitle = "draft",
+        showDelete = false,
+//        selectedTodo = null
     )
 
     MviTodoTheme {
