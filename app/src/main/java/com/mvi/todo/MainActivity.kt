@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.mvi.todo.intent.TodoIntent
 import com.mvi.todo.model.local.Todo
+import com.mvi.todo.nav.AppNavGraph
 import com.mvi.todo.state.TodoState
 import com.mvi.todo.ui.theme.MviTodoTheme
 import dagger.hilt.android.AndroidEntryPoint
@@ -57,13 +58,14 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             MviTodoTheme {
-                val todoViewModel: TodoViewModel = hiltViewModel()
-                val state by todoViewModel.state.collectAsState()
+                AppNavGraph()
+//                val todoViewModel: TodoViewModel = hiltViewModel()
+//                val state by todoViewModel.state.collectAsState()
 
-                MainScreen(
-                    state = state,
-                    onIntent = todoViewModel::onIntent
-                )
+//                MainScreen(
+//                    state = state,
+//                    onIntent = todoViewModel::onIntent
+//                )
             }
         }
     }
@@ -73,7 +75,8 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MainScreen(
     state: TodoState,
-    onIntent: (TodoIntent) -> Unit
+    onIntent: (TodoIntent) -> Unit,
+    onNavigateToMap : () -> Unit = {}
 ) {
     Scaffold(
         topBar = {
@@ -101,7 +104,9 @@ fun MainScreen(
                             contentDescription = "Delete selected icons"
                         )
                     }
-                    IconButton(onClick = {}) {
+                    IconButton(onClick = {
+                        onNavigateToMap()
+                    }) {
                         Icon(
                             painter = painterResource(id = R.drawable.maps_and_flags),
                             contentDescription = "Go to Map",

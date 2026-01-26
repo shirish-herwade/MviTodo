@@ -28,4 +28,6 @@ sealed class TodoIntent {
         Single,
         Selected
     }
+
+//    object NavigateToMap : TodoIntent()
 }

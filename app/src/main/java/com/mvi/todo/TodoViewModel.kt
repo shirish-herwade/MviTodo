@@ -2,6 +2,7 @@ package com.mvi.todo
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.navigation.NavController
 import com.mvi.todo.intent.TodoIntent
 import com.mvi.todo.model.local.Todo
 import com.mvi.todo.model.repository.TodoRepository
@@ -16,7 +17,7 @@ import javax.inject.Inject
 
 @HiltViewModel
 class TodoViewModel @Inject constructor(
-    private val repository: TodoRepository
+    private val repository: TodoRepository,
 ) : ViewModel() {
     private val _state = MutableStateFlow(TodoState())
     val state = _state.asStateFlow()

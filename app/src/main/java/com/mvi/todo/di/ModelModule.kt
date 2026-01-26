@@ -1,6 +1,9 @@
 package com.mvi.todo.di
 
 import android.content.Context
+import androidx.navigation.compose.rememberNavController
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationServices
 import com.mvi.todo.TodoViewModel
 import com.mvi.todo.model.local.TodoDao
 import dagger.Module
@@ -35,7 +38,9 @@ object ModelModule {
     }
 
     @Provides
-    fun provideViewModel(repo: TodoRepository): TodoViewModel {
-        return TodoViewModel(repo)
+    @Singleton
+    fun provideFusedLocationProviderClient(
+        @ApplicationContext context: Context): FusedLocationProviderClient {
+        return LocationServices.getFusedLocationProviderClient(context)
     }
 }
