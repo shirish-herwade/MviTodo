@@ -1,11 +1,22 @@
 package com.mvi.todo
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.android.gms.common.internal.safeparcel.SafeParcelable
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.Priority
 import com.google.android.gms.maps.model.LatLng
+import com.mvi.todo.intent.MapIntent
 import com.mvi.todo.state.MapState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
@@ -23,12 +34,36 @@ class MapViewModel @Inject constructor(
     private val _mapState = MutableStateFlow(MapState())
     val mapState = _mapState.asStateFlow()
 
+//    val currentLocation = { mutableStateOf<LatLng?>(null) }
+
     init {
         startLocationUpdates()
     }
 
+    fun onIntent(intent: MapIntent) {
+        when (intent) {
+            is MapIntent.RefreshLocation -> {
+                if (_mapState.value.isPermissionGranted) {
+                    startLocationUpdates()
+                }
+            }
+
+            is MapIntent.PermissionResult -> {
+                _mapState.update {
+                    it.copy(isPermissionGranted = intent.isGranted)
+                }
+                if (intent.isGranted) {
+                    startLocationUpdates()
+                }
+            }
+        }
+    }
+
     private fun startLocationUpdates() {
-        viewModelScope.launch {
+        viewModelScope.launch @androidx.annotation.RequiresPermission(
+            allOf = [android.Manifest.permission.ACCESS_FINE_LOCATION,
+                android.Manifest.permission.ACCESS_COARSE_LOCATION]
+        ) {
             while (true) {
                 try {
                     fusedLocationProviderClient.getCurrentLocation(

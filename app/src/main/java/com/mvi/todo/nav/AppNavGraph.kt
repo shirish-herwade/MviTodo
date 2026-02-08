@@ -9,6 +9,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.mvi.todo.MainScreen
 import com.mvi.todo.MapScreen
+import com.mvi.todo.MapViewModel
 import com.mvi.todo.TodoViewModel
 
 @Composable
@@ -28,9 +29,13 @@ fun AppNavGraph() {
             )
         }
         composable("map") {
-            MapScreen(onBack = {
-                navController.popBackStack()
-            })
+            val mapViewModel: MapViewModel = hiltViewModel()
+            val state by mapViewModel.mapState.collectAsState()
+            MapScreen(
+                state = state,
+                onIntent = mapViewModel::onIntent,
+                onBack = { navController.popBackStack() }
+            )
         }
     }
 }
