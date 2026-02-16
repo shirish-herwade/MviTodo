@@ -7,15 +7,33 @@ import com.mvi.todo.state.TodoState
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
+import io.mockk.impl.annotations.InjectMockKs
 import io.mockk.mockk
 import io.mockk.verify
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import javax.inject.Inject
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.test.TestDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
 
+@OptIn(ExperimentalCoroutinesApi::class)
+class MainDispatcherRule(
+    val testDispatcher: TestDispatcher = UnconfinedTestDispatcher(),
+) : org.junit.rules.TestWatcher() {
+    override fun starting(description: org.junit.runner.Description) {
+        kotlinx.coroutines.Dispatchers.setMain(testDispatcher)
+    }
+    override fun finished(description: org.junit.runner.Description) {
+        kotlinx.coroutines.Dispatchers.resetMain()
+    }
+}
 
 //@RunWith(MockitoJUnitRunner::class)
 class TodoViewModelTest {
@@ -23,13 +41,14 @@ class TodoViewModelTest {
     private val repository = mockk<TodoRepository>(relaxed = true)
     private lateinit var viewModel: TodoViewModel
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     @Before
     fun before() {
         every {
             repository.getAllTodoListFlow()
         } returns flowOf(getTodoList())
 
-        viewModel = TodoViewModel(repository)
+        viewModel = TodoViewModel(repository, UnconfinedTestDispatcher())
     }
 
     private fun getTodoList(): List<Todo> {
@@ -47,7 +66,7 @@ class TodoViewModelTest {
     }
 
     @Test
-    fun `getState initial state validation`() = runTest {
+    fun `selected todos get deleted`() = runTest {
 //        every { viewModel.state.value } returns TodoState()
 
         viewModel.deleteSelected()
@@ -59,9 +78,10 @@ class TodoViewModelTest {
 
 
     @Test
-    fun `getState repository flow collection`() {
+    fun `getState repository flow collection`() = runTest {
         // Verify that when repository.getAllTodoListFlow emits a new list, the StateFlow updates items and sets isLoading to false.
-        // TODO implement test
+        viewModel.getAllTodoListFlow()
+
     }
 
     @Test

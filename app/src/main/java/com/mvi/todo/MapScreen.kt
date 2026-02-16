@@ -20,8 +20,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
@@ -51,6 +54,7 @@ fun MapScreen(
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    val isPreview = LocalInspectionMode.current
 
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
@@ -61,26 +65,26 @@ fun MapScreen(
 
     // Initial check and request
     LaunchedEffect(Unit) {
-        val isGranted = checkLocationPermission(context)
-        onIntent(MapIntent.PermissionResult(isGranted))
-        if (!isGranted) {
-            launcher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+        if (!isPreview) {
+            val isGranted = checkLocationPermission(context)
+            onIntent(MapIntent.PermissionResult(isGranted))
+            if (!isGranted) {
+                launcher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+            }
         }
     }
 
-    val mapView = remember {
-        MapView(context).apply {
-            setTileSource(TileSourceFactory.MAPNIK)
-            setMultiTouchControls(true)
-        }
-    }
+    // Remember a single MapView reference for lifecycle handling but let AndroidView create/manage the actual view attachment.
+    val mapRef = remember { mutableStateOf<MapView?>(null) }
 
-    // Handle Lifecycle and "Return from Settings"
-    DisposableEffect(lifecycleOwner) {
+    // Handle Lifecycle and "Return from Settings" using the remembered map reference
+    DisposableEffect(lifecycleOwner, mapRef.value) {
+        val mapView = mapRef.value
+        if (mapView == null) return@DisposableEffect onDispose {}
+
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_RESUME -> {
-                    // Re-check permission in case it was changed in Settings
                     val isGranted = checkLocationPermission(context)
                     onIntent(MapIntent.PermissionResult(isGranted))
                     mapView.onResume()
@@ -116,32 +120,49 @@ fun MapScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            AndroidView(
-                modifier = Modifier.fillMaxSize(),
-                factory = { _ ->
-                    mapView
-                },
-                update = { view ->
-                    state.lastLocation?.let {
-                        val point = GeoPoint(it.latitude, it.longitude)
+            if (isPreview) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("Map View (Preview Mode)")
+                }
+            } else {
+                AndroidView(
+                    modifier = Modifier.fillMaxSize(),
+                    factory = { ctx ->
+                        // Create the MapView here so AndroidView manages its attachment lifecycle.
+                        MapView(ctx).apply {
+                            setTileSource(TileSourceFactory.MAPNIK)
+                            setMultiTouchControls(true)
+                            // store reference for lifecycle handling
+                            mapRef.value = this
+                        }
+                    },
+                    update = { view ->
+                        state.lastLocation?.let {
+                            val point = GeoPoint(it.latitude, it.longitude)
 
-                        with(view) {
-                            if (zoomLevelDouble == 0.0) {
-                                controller.setZoom(18.0)
-                                controller.setCenter(point)
+                            with(view) {
+                                // ensure we don't repeatedly re-center if already set
+                                if (zoomLevelDouble == 0.0) {
+                                    controller.setZoom(18.0)
+                                    controller.setCenter(point)
+                                }
+                                // clear overlays before adding (prevents layering markers)
+                                overlays.clear()
+                                val marker = Marker(view).apply {
+                                    position = point
+                                    setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                                    title = "Current location"
+                                }
+                                overlays.add(marker)
+                                invalidate()
                             }
-                            overlays.clear()
-                            val marker = Marker(view).apply {
-                                position = point
-                                setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                                title = "Current location"
-                            }
-                            overlays.add(marker)
-                            invalidate()
                         }
                     }
-                }
-            )
+                )
+            }
         }
     }
 }
