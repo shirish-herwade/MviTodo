@@ -9,6 +9,7 @@ import com.mvi.todo.model.repository.TodoRepository
 import com.mvi.todo.state.TodoState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
@@ -18,7 +19,7 @@ import javax.inject.Inject
 @HiltViewModel
 class TodoViewModel @Inject constructor(
     private val repository: TodoRepository,
-    @IoDispatcher private val ioDispatcher: CoroutineDispatcher
+//    @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) : ViewModel() {
     private val _state = MutableStateFlow(TodoState())
     val state = _state.asStateFlow()
@@ -28,7 +29,8 @@ class TodoViewModel @Inject constructor(
     }
 
     private fun observeTodos() {
-        viewModelScope.launch(ioDispatcher) {
+        viewModelScope.launch(Dispatchers.IO) {
+//        viewModelScope.launch(testDispatcher) {
             _state.update { it.copy(isLoading = true) }
             repository.getAllTodoListFlow().collect { items ->
                 _state.update {
@@ -48,24 +50,24 @@ class TodoViewModel @Inject constructor(
             }
 
             is TodoIntent.Delete ->
-                viewModelScope.launch(ioDispatcher) {
+                viewModelScope.launch(Dispatchers.IO) {
                     repository.delete(intent.todo)
                 }
 
             is TodoIntent.Insert ->
-                viewModelScope.launch(ioDispatcher) {
+                viewModelScope.launch(Dispatchers.IO) {
                     repository.insert(intent.todo)
                 }
 
             is TodoIntent.Update ->
-                viewModelScope.launch(ioDispatcher) {
+                viewModelScope.launch(Dispatchers.IO) {
                     repository.update(intent.todo)
                 }
 
             is TodoIntent.SubmitTodo -> {
                 val title = state.value.draftTitle
                 if (title.isNotBlank()) {
-                    viewModelScope.launch(ioDispatcher) {
+                    viewModelScope.launch(Dispatchers.IO) {
                         repository.insert(Todo(title = title, id = 0, isSelected = false))
                         _state.update { it.copy(draftTitle = "") }
                     }
@@ -76,7 +78,7 @@ class TodoViewModel @Inject constructor(
                 val selectionType = state.value.deleteSelection
                 val totoToDelete = state.value.selectedTodo
 
-                viewModelScope.launch(ioDispatcher) {
+                viewModelScope.launch(Dispatchers.IO) {
                     when (selectionType) {
                         TodoIntent.DeleteSelection.Single -> {
                             totoToDelete?.let {
@@ -143,7 +145,7 @@ class TodoViewModel @Inject constructor(
             it.isSelected
         }
         if (selectedItems.isNotEmpty()) {
-            viewModelScope.launch(ioDispatcher) {
+            viewModelScope.launch(Dispatchers.IO) {
                 repository.deleteTodos(selectedItems)
             }
         } else {
