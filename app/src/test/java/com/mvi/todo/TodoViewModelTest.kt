@@ -1,6 +1,7 @@
 package com.mvi.todo
 
 //import com.mvi.todo.ToDoViewModel
+import app.cash.turbine.test
 import com.mvi.todo.model.local.Todo
 import com.mvi.todo.model.repository.TodoRepository
 import com.mvi.todo.state.TodoState
@@ -10,28 +11,37 @@ import io.mockk.every
 import io.mockk.impl.annotations.InjectMockKs
 import io.mockk.mockk
 import io.mockk.verify
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import javax.inject.Inject
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestDispatcher
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
+import org.junit.rules.TestWatcher
+import org.junit.runner.Description
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class MainDispatcherRule(
     val testDispatcher: TestDispatcher = UnconfinedTestDispatcher(),
-) : org.junit.rules.TestWatcher() {
-    override fun starting(description: org.junit.runner.Description) {
-        kotlinx.coroutines.Dispatchers.setMain(testDispatcher)
+) : TestWatcher() {
+    override fun starting(description: Description) {
+        Dispatchers.setMain(testDispatcher)
     }
-    override fun finished(description: org.junit.runner.Description) {
-        kotlinx.coroutines.Dispatchers.resetMain()
+
+    override fun finished(description: Description) {
+        Dispatchers.resetMain()
     }
 }
 
@@ -39,6 +49,9 @@ class MainDispatcherRule(
 class TodoViewModelTest {
 
     private val repository = mockk<TodoRepository>(relaxed = true)
+
+    private var testDispatcher = StandardTestDispatcher()
+
     private lateinit var viewModel: TodoViewModel
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -48,7 +61,10 @@ class TodoViewModelTest {
             repository.getAllTodoListFlow()
         } returns flowOf(getTodoList())
 
-        viewModel = TodoViewModel(repository, UnconfinedTestDispatcher())
+        viewModel = TodoViewModel(
+            repository,
+            testDispatcher
+        )
     }
 
     private fun getTodoList(): List<Todo> {
@@ -77,11 +93,44 @@ class TodoViewModelTest {
     }
 
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun `getState repository flow collection`() = runTest {
+    fun `getState repository flow collection`() = runTest(
+        testDispatcher)
+     {
         // Verify that when repository.getAllTodoListFlow emits a new list, the StateFlow updates items and sets isLoading to false.
-        viewModel.getAllTodoListFlow()
+//        val testDispatcher = StandardTestDispatcher(testScheduler)
+//
+//        var viewModel: TodoViewModel(repository, testDispatcher)
 
+        val todoFlow = MutableSharedFlow<List<Todo>>()
+        every {
+            repository.getAllTodoListFlow()
+        } returns todoFlow
+
+        val viewModel = TodoViewModel(repository, testDispatcher)
+
+        viewModel.state.test {
+            val initialState = awaitItem()
+            assertEquals(false, initialState.isLoading)
+
+            testDispatcher.scheduler.advanceUntilIdle()
+//            runCurrent()
+
+            val loadingState = awaitItem()
+            assertEquals(true, loadingState.isLoading)
+
+            val newData = listOf(Todo("New todo", 1, false))
+            todoFlow.emit(newData)
+            testDispatcher.scheduler.advanceUntilIdle()
+//            runCurrent()
+
+            val finalState = awaitItem()
+            assertEquals(newData, finalState.items)
+            assertEquals(false, finalState.isLoading)
+
+            cancelAndIgnoreRemainingEvents()
+        }
     }
 
     @Test
