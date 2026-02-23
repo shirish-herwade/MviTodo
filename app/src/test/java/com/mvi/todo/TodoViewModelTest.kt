@@ -10,6 +10,8 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.impl.annotations.InjectMockKs
 import io.mockk.mockk
+import io.mockk.mockkStatic
+import io.mockk.unmockkStatic
 import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -28,6 +30,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TestWatcher
 import org.junit.runner.Description
@@ -50,35 +53,26 @@ class TodoViewModelTest {
 
     private val repository = mockk<TodoRepository>(relaxed = true)
 
-    private var testDispatcher = StandardTestDispatcher()
+    @get:Rule
+    val mainDispatcherRule = MainDispatcherRule()
 
     private lateinit var viewModel: TodoViewModel
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Before
     fun before() {
+        // Add these two lines to mock and redirect Dispatchers.IO
+        mockkStatic(Dispatchers::class)
+        every { Dispatchers.IO } returns mainDispatcherRule.testDispatcher
+
         every {
             repository.getAllTodoListFlow()
         } returns flowOf(getTodoList())
 
         viewModel = TodoViewModel(
             repository,
-            testDispatcher
+//            testDispatcher
         )
-    }
-
-    private fun getTodoList(): List<Todo> {
-        return listOf<Todo>(
-            Todo("1", 1, false),
-            Todo("2", 2, true),
-            Todo("3", 3, true),
-            Todo("4", 4, true)
-        )
-    }
-
-    @After
-    fun after() {
-
     }
 
     @Test
@@ -95,36 +89,20 @@ class TodoViewModelTest {
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun `getState repository flow collection`() = runTest(
-        testDispatcher)
-     {
-        // Verify that when repository.getAllTodoListFlow emits a new list, the StateFlow updates items and sets isLoading to false.
-//        val testDispatcher = StandardTestDispatcher(testScheduler)
-//
-//        var viewModel: TodoViewModel(repository, testDispatcher)
+    fun `getState repository flow collection`() = runTest()
+    {
+        val todoFlow = MutableSharedFlow<List<Todo>>(replay = 1)
+        every { repository.getAllTodoListFlow() } returns todoFlow
 
-        val todoFlow = MutableSharedFlow<List<Todo>>()
-        every {
-            repository.getAllTodoListFlow()
-        } returns todoFlow
-
-        val viewModel = TodoViewModel(repository, testDispatcher)
+        val viewModel = TodoViewModel(repository)
 
         viewModel.state.test {
-            val initialState = awaitItem()
-            assertEquals(false, initialState.isLoading)
-
-            testDispatcher.scheduler.advanceUntilIdle()
-//            runCurrent()
-
-            val loadingState = awaitItem()
-            assertEquals(true, loadingState.isLoading)
+            assertEquals(true, awaitItem().isLoading)
 
             val newData = listOf(Todo("New todo", 1, false))
             todoFlow.emit(newData)
-            testDispatcher.scheduler.advanceUntilIdle()
-//            runCurrent()
 
+            // 3. Verify state updates immediately
             val finalState = awaitItem()
             assertEquals(newData, finalState.items)
             assertEquals(false, finalState.isLoading)
@@ -132,6 +110,41 @@ class TodoViewModelTest {
             cancelAndIgnoreRemainingEvents()
         }
     }
+
+//    @OptIn(ExperimentalCoroutinesApi::class)
+//    @Test
+//    fun `getState repository flow collection copilot`() = runTest {
+//        val testDispatcher = StandardTestDispatcher(testScheduler)
+//        Dispatchers.setMain(testDispatcher)
+//
+//        val todoFlow = MutableSharedFlow<List<Todo>>()
+//        every { repository.getAllTodoListFlow() } returns todoFlow
+//
+//        val viewModel = TodoViewModel(repository)
+//
+//        viewModel.state.test {
+//            val initialState = awaitItem()
+//            assertEquals(false, initialState.isLoading)
+//
+//            // start collection / background work
+//            testScheduler.advanceUntilIdle()
+//
+//            val loadingState = awaitItem()
+//            assertEquals(true, loadingState.isLoading)
+//
+//            val newData = listOf(Todo("New todo", 1, false))
+//            todoFlow.emit(newData)
+//
+//            // allow emission handling to run
+//            testScheduler.advanceUntilIdle()
+//
+//            val finalState = awaitItem()
+//            assertEquals(newData, finalState.items)
+//            assertEquals(false, finalState.isLoading)
+//
+//            cancelAndIgnoreRemainingEvents()
+//        }
+//    }
 
     @Test
     fun `onIntent ChangeDraftTitle update`() {
@@ -239,6 +252,20 @@ class TodoViewModelTest {
     fun `Concurrent intent processing safety`() {
         // Verify that multiple rapid intents (e.g. multiple Inserts) are handled correctly via the Dispatchers.IO coroutine launches.
         // TODO implement test
+    }
+
+    private fun getTodoList(): List<Todo> {
+        return listOf<Todo>(
+            Todo("Task 1", 1, false),
+            Todo("Task 2", 2, true),
+            Todo("Task 3", 3, true),
+            Todo("Task 4", 4, true)
+        )
+    }
+
+    @After
+    fun after() {
+        unmockkStatic(Dispatchers::class)
     }
 
 }

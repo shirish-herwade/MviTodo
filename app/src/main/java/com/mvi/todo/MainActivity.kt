@@ -40,6 +40,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -76,7 +77,7 @@ class MainActivity : ComponentActivity() {
 fun MainScreen(
     state: TodoState,
     onIntent: (TodoIntent) -> Unit,
-    onNavigateToMap : () -> Unit = {}
+    onNavigateToMap: () -> Unit = {}
 ) {
     Scaffold(
         topBar = {
@@ -96,6 +97,19 @@ fun MainScreen(
                                         selection = TodoIntent.DeleteSelection.Selected
                                     )
                                 )
+                            } else {
+//                                AlertDialog(
+//                                    onDismissRequest = { onIntent(TodoIntent.DismissDeleteDialog) },
+//                                    title = { Text(text = "Nothing to delete ?") },
+//                                    text = { Text(text = "First select todo/s to delete.") },
+//                                    dismissButton = {
+//                                        TextButton(onClick = {
+//                                            onIntent(TodoIntent.DismissDeleteDialog)
+//                                        })
+//                                        {
+//                                            Text("Cancel")
+//                                        }
+//                                    })
                             }
                         }
                     ) {
@@ -128,7 +142,11 @@ fun MainScreen(
                 .fillMaxSize()
         ) {
             if (state.isLoading) {
-                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                CircularProgressIndicator(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .testTag("loadingIndicator")
+                )
             } else if (state.items.isEmpty()) {
                 Text(
                     text = "Nothing found",
@@ -237,9 +255,10 @@ fun TodoRow(state: TodoState, todo: Todo, onIntent: (TodoIntent) -> Unit) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
+                .padding(horizontal = 12.dp, vertical = 8.dp)
+                .testTag("todoRow"),
             horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(text = todo.title)
             Checkbox(

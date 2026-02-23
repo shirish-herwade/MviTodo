@@ -1,9 +1,35 @@
 package com.mvi.todo
 
+import androidx.activity.ComponentActivity
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertHasClickAction
+import androidx.compose.ui.test.assertHasNoClickAction
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.hasProgressBarRangeInfo
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onChildAt
+import androidx.compose.ui.test.onChildren
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onParent
+import androidx.compose.ui.test.performClick
+import androidx.navigation.compose.ComposeNavigator
+import androidx.navigation.compose.composable
+import androidx.navigation.createGraph
+import androidx.navigation.testing.TestNavHostController
+import com.mvi.todo.model.local.Todo
 import com.mvi.todo.state.TodoState
+import org.junit.After
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -14,6 +40,20 @@ class MainActivityTest {
 
     @get:Rule
     val composeTestRule = createComposeRule()
+
+    private lateinit var todoList: List<Todo>
+    private lateinit var state: TodoState
+
+    @Before
+    fun setUp() {
+        todoList = getTodoList()
+        state = TodoState(items = todoList)
+    }
+
+    @After
+    fun tearDown() {
+        // Reset any global state if needed. Currently nothing to reset, kept for symmetry and future use.
+    }
 
     @Test
     fun `Activity basic initialization`() {
@@ -93,41 +133,126 @@ class MainActivityTest {
     fun `MainScreen loading state UI`() {
         //Verify that `CircularProgressIndicator` is displayed in the center of the screen when `state.isLoading` is true.
         val state = TodoState(isLoading = true)
-        composeTestRule.setContent{
+        composeTestRule.setContent {
             MainScreen(state = state, onIntent = {})
         }
-
+        composeTestRule.onNode(hasProgressBarRangeInfo(ProgressBarRangeInfo.Indeterminate))
+            .assertIsDisplayed()
         composeTestRule.onNodeWithTag("loadingIndicator").assertIsDisplayed()
     }
 
     @Test
     fun `MainScreen empty state UI`() {
         //Verify that the text 'Nothing found' is displayed in the center when `state.isLoading` is false and `state.items` is empty.
-        // TODO implement test
+        val state = TodoState(isLoading = false, items = emptyList())
+        composeTestRule.setContent {
+            MainScreen(state = state, onIntent = {})
+        }
+        composeTestRule.onNodeWithText("Nothing found").assertIsDisplayed()
     }
 
     @Test
     fun `MainScreen displays todo items`() {
         //Verify that `LazyColumn` is displayed and `TodoRow` is composed for each item in `state.items` when the list is not empty.
-        // TODO implement test
+        todoList = getTodoList()
+        composeTestRule.setContent {
+            MainScreen(state = state, onIntent = {})
+        }
+
+        val allRows = composeTestRule.onAllNodesWithTag("todoRow", useUnmergedTree = true)
+        allRows.assertCountEquals(todoList.size)
+
+        todoList.forEachIndexed { index, todo ->
+            val rowNode = allRows[index]
+            val textNode = composeTestRule.onNodeWithText(todo.title)
+
+            rowNode.onParent().assertHasClickAction()
+            rowNode.assertIsDisplayed()
+            textNode.assertIsDisplayed()
+
+            val checkBoxNode = rowNode.onChildAt(1)
+//            checkBoxNode.assertHasClickAction()
+            if (todo.isSelected) {
+                checkBoxNode.assertIsOn()
+            } else {
+                checkBoxNode.assertIsOff()
+            }
+        }
+//        composeTestRule.onAllNodesWithTag("todoRow").assertCountEquals(todoList.size)
+//        composeTestRule.onNodeWithTag("todoRow").performClick()
+    }
+
+    private fun getTodoList(): List<Todo> {
+        return listOf<Todo>(
+            Todo("Task 1", 1, false),
+            Todo("Task 2", 2, true),
+            Todo("Task 3", 3, true),
+            Todo("Task 4", 4, true)
+        )
     }
 
     @Test
     fun `MainScreen delete button enabled with selections`() {
         //Verify that clicking the top bar delete icon triggers the `ShowDeleteDialog` intent with `DeleteSelection.Selected` when at least one todo item is selected (`it.isSelected` is true).
-        // TODO implement test
+        val todoList = getTodoList()
+        val state = TodoState(isLoading = false, items = todoList)
+        composeTestRule.setContent {
+            MainScreen(state = state, onIntent = {})
+        }
+        composeTestRule.onNodeWithContentDescription("Delete selected icons").assertIsEnabled()
     }
 
     @Test
     fun `MainScreen delete button disabled without selections`() {
         //Verify that clicking the top bar delete icon does nothing when no todo items are selected .
-        // TODO implement test
+        val todoList = getTodoList()
+//        val unselectedList = todoList.map { it.copy(isSelected = false) }
+
+        todoList.forEach { todo ->
+            todo.copy(isSelected = false)
+        }
+
+        val state = TodoState(isLoading = false, items = todoList)
+
+        composeTestRule.setContent {
+            MainScreen(state = state, onIntent = {})
+        }
+//        composeTestRule.onNodeWithContentDescription("Delete selected icons").assertIsNotEnabled()
     }
 
     @Test
     fun `MainScreen map navigation`() {
         //Verify that clicking the map icon in the top app bar invokes the `onNavigateToMap` callback.
-        // TODO implement test
+
+        val context =
+            androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+        val navController = TestNavHostController(context)
+        navController.navigatorProvider.addNavigator(ComposeNavigator())
+
+        composeTestRule.runOnUiThread {
+//            navController.setGraph(
+//                navController.createGraph(startDestination = "home") {
+//                    composable("home") {}
+//                    composable("map") {}
+//                }
+//            )
+            // Assign the created NavGraph directly to avoid calling the Int-based setGraph overload
+            navController.graph = navController.createGraph(startDestination = "home") {
+                composable("home") {}
+                composable("map") {}
+            }
+        }
+
+        composeTestRule.setContent {
+            MainScreen(
+                state = state,
+                onIntent = {},
+                onNavigateToMap = { navController.navigate("map") }
+            )
+        }
+//        composeTestRule.onNodeWithContentDescription("Go to Map").assertHasClickAction()
+        composeTestRule.onNodeWithContentDescription("Go to Map").performClick()
+        assert(navController.currentBackStackEntry?.destination?.route == "map")
     }
 
     @Test

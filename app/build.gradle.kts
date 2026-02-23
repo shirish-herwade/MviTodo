@@ -48,6 +48,11 @@ android {
             excludes += "/META-INF/LICENSE-notice.md"
         }
     }
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+        }
+    }
 }
 
 dependencies {
@@ -69,6 +74,8 @@ dependencies {
     implementation(libs.androidx.compose.runtime)
     implementation(libs.kotlinx.coroutines.play.services)
     implementation(libs.androidx.junit.ktx)
+    implementation(libs.androidx.navigation.testing)
+    implementation(libs.navigation.compose)
 
     testImplementation(libs.junit)
     testImplementation(libs.mockk)

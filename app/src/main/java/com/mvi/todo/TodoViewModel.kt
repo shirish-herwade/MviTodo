@@ -19,7 +19,6 @@ import javax.inject.Inject
 @HiltViewModel
 class TodoViewModel @Inject constructor(
     private val repository: TodoRepository,
-//    @IoDispatcher private val ioDispatcher: CoroutineDispatcher
 ) : ViewModel() {
     private val _state = MutableStateFlow(TodoState())
     val state = _state.asStateFlow()
